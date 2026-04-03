@@ -33,6 +33,11 @@ pub trait BlockStateExt {
     fn is_solid(&self) -> bool;
     /// Returns if a block can be replaced extracted from the minecraft data
     fn is_replaceable(&self) -> bool;
+    /// Returns whether this block fully occludes its cube (opaque full-cube block).
+    ///
+    /// Mirrors vanilla's `BlockState.isSolidRender()`, used by explosion fire spread
+    /// to determine if a block face can support fire.
+    fn is_solid_render(&self) -> bool;
 }
 
 impl BlockStateExt for BlockStateId {
@@ -114,6 +119,15 @@ impl BlockStateExt for BlockStateId {
 
     fn is_replaceable(&self) -> bool {
         self.get_block().config.replaceable
+    }
+
+    fn is_solid_render(&self) -> bool {
+        let block = self.get_block();
+        if !block.config.can_occlude {
+            return false;
+        }
+        let shape = self.get_collision_shape();
+        shape.len() == 1 && shape[0] == blocks::shapes::AABB::FULL_BLOCK
     }
 }
 

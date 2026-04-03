@@ -210,6 +210,14 @@ pub trait Entity: Send + Sync {
     /// Sets the entity's velocity.
     fn set_velocity(&self, _velocity: DVec3) {}
 
+    /// Adds an impulse to the entity's velocity.
+    ///
+    /// Mirrors vanilla's `Entity.push(Vec3)`. Used by explosions and collisions.
+    /// Default is a no-op; override for entities with velocity state (players, mobs, projectiles).
+    fn push(&self, impulse: DVec3) {
+        self.set_velocity(self.velocity() + impulse);
+    }
+
     /// Returns true if the entity is on the ground.
     fn on_ground(&self) -> bool {
         false
@@ -383,6 +391,27 @@ pub trait Entity: Send + Sync {
     )]
     fn hurt(&self, source: &DamageSource, amount: f32) -> bool {
         false
+    }
+
+    /// Returns whether this entity ignores the given explosion entirely.
+    ///
+    /// Mirrors vanilla's `Entity.ignoreExplosion`. Default: false.
+    fn ignore_explosion(&self, _explosion: &crate::explosion::Explosion) -> bool {
+        false
+    }
+
+    /// Called after this entity has been hit by an explosion.
+    ///
+    /// Mirrors vanilla's `Entity.onExplosionHit`. Used for primed TNT chains.
+    /// Default: no-op.
+    fn on_explosion_hit(&self, _source: Option<&SharedEntity>) {}
+
+    /// Returns this entity's explosion knockback resistance in [0, 1].
+    ///
+    /// Mirrors vanilla's `Attributes.EXPLOSION_KNOCKBACK_RESISTANCE`.
+    /// TODO: replace with attribute lookup once the attribute system is implemented.
+    fn explosion_knockback_resistance(&self) -> f64 {
+        0.0
     }
 }
 

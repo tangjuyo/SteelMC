@@ -2969,6 +2969,10 @@ impl Entity for Player {
         self.movement.lock().delta_movement
     }
 
+    fn set_velocity(&self, velocity: DVec3) {
+        self.movement.lock().delta_movement = velocity;
+    }
+
     fn on_ground(&self) -> bool {
         self.entity_state.lock().on_ground
     }

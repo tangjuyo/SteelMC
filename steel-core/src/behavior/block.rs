@@ -15,6 +15,7 @@ use steel_utils::{BlockPos, BlockStateId};
 use crate::behavior::context::{BlockHitResult, BlockPlaceContext, InteractionResult};
 use crate::block_entity::SharedBlockEntity;
 use crate::entity::Entity;
+use crate::explosion::Explosion;
 use crate::fluid::is_water_fluid;
 use crate::player::Player;
 use crate::world::World;
@@ -413,6 +414,34 @@ pub trait BlockBehavior: Send + Sync {
             _ => false,
         }
     }
+
+    // === Explosion Methods ===
+
+    /// Returns whether this block drops its loot when destroyed by an explosion.
+    ///
+    /// Mirrors vanilla's `Block.dropFromExplosion(Explosion)`. Default is `true`.
+    /// TNT overrides this to `false` — destroyed TNT never drops as an item.
+    #[expect(
+        unused_variables,
+        reason = "default trait implementation ignores all params"
+    )]
+    fn drop_from_explosion(&self, explosion: &Explosion) -> bool {
+        true
+    }
+
+    /// Called after this block is destroyed by an explosion, for side-effects.
+    ///
+    /// Mirrors vanilla's `Block.wasExploded(Level, BlockPos, Explosion)`. Default is a no-op.
+    /// TNT overrides this to spawn a new `PrimedTnt` with a randomized fuse (chain reaction).
+    #[expect(
+        unused_variables,
+        reason = "default trait implementation ignores all params"
+    )]
+    fn was_exploded(&self, world: &Arc<World>, pos: BlockPos, explosion: &Explosion) {
+        // Default: no-op
+    }
+
+    // === Fluid Methods ===
 
     /// Vanilla parity: `LiquidBlockContainer.placeLiquid()`.
     ///

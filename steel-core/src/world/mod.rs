@@ -1448,6 +1448,85 @@ impl World {
         }
     }
 
+    /// Returns true if the segment from `from` to `to` passes through no solid blocks (MISS).
+    ///
+    /// Mirrors vanilla's `Level.clip(ClipContext(from, to, COLLIDER, NONE, null))`. Uses
+    /// the collision shape of each traversed block and ignores fluids.
+    ///
+    /// Used by explosion visibility sampling (`getSeenPercent`).
+    #[must_use]
+    pub fn clip_blocks(&self, from: DVec3, to: DVec3) -> bool {
+        if (from - to).length_squared() < 1e-14 {
+            return true;
+        }
+
+        // Vanilla nudges endpoints inward by -1e-7 to avoid boundary edge-cases.
+        // lerp(-1e-7, a, b) = a + (-1e-7) * (b - a)
+        let adjusted_from = from + (to - from) * (-1e-7);
+        let adjusted_to = to + (from - to) * (-1e-7);
+
+        let difference = adjusted_to - adjusted_from;
+        let step = difference.signum().as_ivec3();
+
+        let delta = DVec3::new(
+            if step.x == 0 { f64::MAX } else { f64::from(step.x) / difference.x },
+            if step.y == 0 { f64::MAX } else { f64::from(step.y) / difference.y },
+            if step.z == 0 { f64::MAX } else { f64::from(step.z) / difference.z },
+        );
+
+        let frac = |v: f64| v - v.floor();
+        let mut next = DVec3::new(
+            delta.x * (if step.x > 0 { 1.0 - frac(adjusted_from.x) } else { frac(adjusted_from.x) }),
+            delta.y * (if step.y > 0 { 1.0 - frac(adjusted_from.y) } else { frac(adjusted_from.y) }),
+            delta.z * (if step.z > 0 { 1.0 - frac(adjusted_from.z) } else { frac(adjusted_from.z) }),
+        );
+
+        let mut bx = adjusted_from.x.floor() as i32;
+        let mut by = adjusted_from.y.floor() as i32;
+        let mut bz = adjusted_from.z.floor() as i32;
+
+        let check = |bx: i32, by: i32, bz: i32, world: &Self| {
+            let pos = BlockPos::new(bx, by, bz);
+            let state = world.get_block_state(pos);
+            let shapes = state.get_collision_shape();
+            if shapes.is_empty() {
+                return false;
+            }
+            let origin = DVec3::new(f64::from(bx), f64::from(by), f64::from(bz));
+            for shape in shapes {
+                let world_min = origin + DVec3::new(f64::from(shape.min_x), f64::from(shape.min_y), f64::from(shape.min_z));
+                let world_max = origin + DVec3::new(f64::from(shape.max_x), f64::from(shape.max_y), f64::from(shape.max_z));
+                if Self::intersects_aabb_with_t(from, to, world_min, world_max).is_some() {
+                    return true;
+                }
+            }
+            false
+        };
+
+        if check(bx, by, bz, self) {
+            return false;
+        }
+
+        while next.x <= 1.0 || next.y <= 1.0 || next.z <= 1.0 {
+            if next.x < next.y && next.x < next.z {
+                bx += step.x;
+                next.x += delta.x;
+            } else if next.y < next.x && next.y < next.z {
+                by += step.y;
+                next.y += delta.y;
+            } else {
+                bz += step.z;
+                next.z += delta.z;
+            }
+
+            if check(bx, by, bz, self) {
+                return false;
+            }
+        }
+
+        true
+    }
+
     /// Performs a raytrace in the world.
     ///
     /// Adapted from Pumpkin project.

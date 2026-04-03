@@ -61,6 +61,7 @@ pub mod jukebox_song;
 pub mod loot_table;
 pub mod menu_type;
 pub mod painting_variant;
+pub mod particle_types;
 pub mod pig_variant;
 pub mod poi;
 pub mod recipe;
