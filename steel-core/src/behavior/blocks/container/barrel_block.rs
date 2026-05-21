@@ -20,6 +20,7 @@ use crate::inventory::chest_menu::ChestMenuProvider;
 use crate::inventory::container::calculate_redstone_signal_from_container;
 use crate::inventory::lock::ContainerRef;
 use crate::player::Player;
+use crate::player::stats::CustomStat;
 use crate::world::World;
 
 /// Behavior for barrel blocks.
@@ -77,7 +78,10 @@ impl BlockBehavior for BarrelBlock {
             TextComponent::translated(translations::CONTAINER_BARREL.msg()),
         ));
 
-        // TODO: Award stat OPEN_BARREL
+        player
+            .stats
+            .lock()
+            .increment_custom(CustomStat::OpenBarrel, 1);
         // TODO: Anger nearby piglins (PiglinAi.angerNearbyPiglins)
         // TODO: Implement ContainerOpenersCounter to track open state, play sounds,
         //       and update OPEN block property. Requires scheduled block ticks (scheduleTick)

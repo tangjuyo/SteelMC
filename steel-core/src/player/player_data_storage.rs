@@ -15,12 +15,15 @@ use wincode::{SchemaRead, SchemaWrite};
 use super::player_data::{PersistentAbilities, PersistentPlayerData, PersistentSlot};
 use crate::config::StorageSelection;
 use crate::player::Player;
+use crate::player::stats::CustomStat;
+use crate::player::stats::PlayerStats;
 use steel_registry::item_stack::ItemStack;
 use steel_utils::Identifier;
 use steel_utils::locks::{AsyncMutex, SyncMutex};
 
 const PLAYER_MAGIC: [u8; 4] = *b"STLP";
 const GLOBAL_MAGIC: [u8; 4] = *b"STLG";
+const STATS_MAGIC: [u8; 4] = *b"STLS";
 const PLAYER_STORAGE_VERSION: u16 = 1;
 
 /// Server-wide player data.
@@ -92,6 +95,62 @@ struct GlobalPlayerDataFile {
     last_active_domain: String,
 }
 
+/// A single key-value pair within a stat map (e.g. `{block_id: 0, value: 42}`).
+#[derive(SchemaWrite, SchemaRead)]
+struct StatMapEntry {
+    id: u32,
+    value: i32,
+}
+
+/// Wincode schema for per-player statistics persisted to `{domain}/stats/{uuid}.dat`.
+#[derive(SchemaWrite, SchemaRead)]
+struct StatsFile {
+    data_version: i32,
+    blocks_mined: Vec<StatMapEntry>,
+    items_crafted: Vec<StatMapEntry>,
+    items_used: Vec<StatMapEntry>,
+    items_broken: Vec<StatMapEntry>,
+    items_picked_up: Vec<StatMapEntry>,
+    items_dropped: Vec<StatMapEntry>,
+    entities_killed: Vec<StatMapEntry>,
+    entities_killed_by: Vec<StatMapEntry>,
+    /// Custom stats array, length must equal `CustomStat::COUNT` (77).
+    custom: Vec<i32>,
+}
+
+impl StatsFile {
+    fn from_stats(stats: &PlayerStats) -> Self {
+        Self {
+            data_version: 1,
+            blocks_mined: map_to_entries(&stats.blocks_mined),
+            items_crafted: map_to_entries(&stats.items_crafted),
+            items_used: map_to_entries(&stats.items_used),
+            items_broken: map_to_entries(&stats.items_broken),
+            items_picked_up: map_to_entries(&stats.items_picked_up),
+            items_dropped: map_to_entries(&stats.items_dropped),
+            entities_killed: map_to_entries(&stats.entities_killed),
+            entities_killed_by: map_to_entries(&stats.entities_killed_by),
+            custom: stats.custom.to_vec(),
+        }
+    }
+
+    fn into_stats(self) -> PlayerStats {
+        let mut stats = PlayerStats::new();
+        entries_to_map(self.blocks_mined, &mut stats.blocks_mined);
+        entries_to_map(self.items_crafted, &mut stats.items_crafted);
+        entries_to_map(self.items_used, &mut stats.items_used);
+        entries_to_map(self.items_broken, &mut stats.items_broken);
+        entries_to_map(self.items_picked_up, &mut stats.items_picked_up);
+        entries_to_map(self.items_dropped, &mut stats.items_dropped);
+        entries_to_map(self.entities_killed, &mut stats.entities_killed);
+        entries_to_map(self.entities_killed_by, &mut stats.entities_killed_by);
+        for (i, val) in self.custom.into_iter().take(CustomStat::COUNT).enumerate() {
+            stats.custom[i] = val;
+        }
+        stats
+    }
+}
+
 impl PlayerDataStorage {
     /// Creates player data storage from config.
     pub async fn new(save_root: PathBuf, selection: StorageSelection) -> io::Result<Self> {
@@ -161,6 +220,26 @@ impl PlayerDataStorage {
     pub async fn save_global(&self, uuid: Uuid, data: &GlobalPlayerData) -> io::Result<()> {
         match &self.backend {
             PlayerDataStorageBackend::File(storage) => storage.save_global(uuid, data).await,
+        }
+    }
+
+    /// Loads a player's statistics from `{domain}/stats/{uuid}.dat`.
+    /// Returns an empty `PlayerStats` if no file exists yet.
+    pub async fn load_stats(&self, domain: &str, uuid: Uuid) -> io::Result<PlayerStats> {
+        match &self.backend {
+            PlayerDataStorageBackend::File(storage) => storage.load_stats(domain, uuid).await,
+        }
+    }
+
+    /// Saves pre-encoded player statistics to `{domain}/stats/{uuid}.dat`.
+    ///
+    /// Callers should encode via `encode_player_stats` while holding the stats lock,
+    /// then call this after releasing the lock.
+    pub async fn save_stats(&self, domain: &str, uuid: Uuid, bytes: Vec<u8>) -> io::Result<()> {
+        match &self.backend {
+            PlayerDataStorageBackend::File(storage) => {
+                storage.save_stats(domain, uuid, bytes).await
+            }
         }
     }
 
@@ -250,12 +329,35 @@ impl FilePlayerDataStorage {
             .await
     }
 
+    async fn load_stats(&self, domain: &str, uuid: Uuid) -> io::Result<PlayerStats> {
+        let path = Self::stats_file(&self.domain_stats_dir(domain), uuid);
+        if !path.exists() {
+            return Ok(PlayerStats::new());
+        }
+        let bytes = fs::read(&path).await?;
+        let file = decode_stats_file(&bytes)?;
+        Ok(file.into_stats())
+    }
+
+    async fn save_stats(&self, domain: &str, uuid: Uuid, bytes: Vec<u8>) -> io::Result<()> {
+        self.write_atomic(&self.domain_stats_dir(domain), uuid, bytes)
+            .await
+    }
+
     fn global_players_dir(&self) -> PathBuf {
         self.save_root.join("global").join("players")
     }
 
     fn domain_players_dir(&self, domain: &str) -> PathBuf {
         self.save_root.join(domain).join("players")
+    }
+
+    fn domain_stats_dir(&self, domain: &str) -> PathBuf {
+        self.save_root.join(domain).join("stats")
+    }
+
+    fn stats_file(stats_dir: &Path, uuid: Uuid) -> PathBuf {
+        stats_dir.join(format!("{uuid}.dat"))
     }
 
     fn player_file(players_dir: &Path, uuid: Uuid) -> PathBuf {
@@ -405,6 +507,38 @@ fn item_from_nbt_bytes(bytes: &[u8]) -> io::Result<ItemStack> {
     let compound = simdnbt::borrow::NbtCompound::from(&nbt);
     ItemStack::from_borrowed_compound(&compound)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid item stack data"))
+}
+
+/// Encodes a `PlayerStats` snapshot to bytes for use with `PlayerDataStorage::save_stats`.
+///
+/// Call this while holding the stats lock; the resulting bytes can then be passed to
+/// `save_stats` after the lock is released (safe to hold across `.await`).
+pub(crate) fn encode_player_stats(stats: &PlayerStats) -> io::Result<Vec<u8>> {
+    encode_file(STATS_MAGIC, wincode::serialize(&StatsFile::from_stats(stats)))
+}
+
+fn decode_stats_file(bytes: &[u8]) -> io::Result<StatsFile> {
+    let payload = decode_file(STATS_MAGIC, bytes)?;
+    wincode::deserialize(&payload)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
+}
+
+fn map_to_entries(map: &rustc_hash::FxHashMap<usize, i32>) -> Vec<StatMapEntry> {
+    map.iter()
+        .filter(|&(_, &v)| v != 0)
+        .map(|(&id, &value)| StatMapEntry {
+            id: id as u32,
+            value,
+        })
+        .collect()
+}
+
+fn entries_to_map(entries: Vec<StatMapEntry>, map: &mut rustc_hash::FxHashMap<usize, i32>) {
+    for entry in entries {
+        if entry.value != 0 {
+            map.insert(entry.id as usize, entry.value);
+        }
+    }
 }
 
 fn encode_player_file(file: &PlayerDataFile) -> io::Result<Vec<u8>> {

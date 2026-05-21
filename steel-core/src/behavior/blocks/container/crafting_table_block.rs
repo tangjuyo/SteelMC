@@ -13,6 +13,7 @@ use crate::behavior::block::BlockBehavior;
 use crate::behavior::context::{BlockHitResult, BlockPlaceContext, InteractionResult};
 use crate::inventory::CraftingMenuProvider;
 use crate::player::Player;
+use crate::player::stats::CustomStat;
 use crate::world::World;
 
 /// Behavior for the crafting table block.
@@ -47,7 +48,10 @@ impl BlockBehavior for CraftingTableBlock {
         _inv: &mut InventoryAccess,
     ) -> InteractionResult {
         player.open_menu(&CraftingMenuProvider::new(player.inventory.clone(), pos));
-        // TODO: Award stat INTERACT_WITH_CRAFTING_TABLE
+        player
+            .stats
+            .lock()
+            .increment_custom(CustomStat::InteractWithCraftingTable, 1);
         InteractionResult::Success
     }
 }

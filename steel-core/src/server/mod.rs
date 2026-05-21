@@ -317,6 +317,25 @@ impl Server {
 
         Self::apply_domain_player_state(&player, &state);
         player.reset_health_if_dead();
+
+        match self
+            .player_data_storage
+            .load_stats(&target_domain, player.gameprofile.id)
+            .await
+        {
+            Ok(loaded_stats) => {
+                let mut stats = player.stats.lock();
+                *stats = loaded_stats;
+                stats.mark_all_dirty();
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to load stats for {}: {e}",
+                    player.gameprofile.name
+                );
+            }
+        }
+
         self.send_login_packet(&player, &state.world);
 
         player.reset(state.world.clone(), ResetReason::InitialJoin);
@@ -924,6 +943,8 @@ impl Server {
         }
 
         let current_data = PersistentPlayerData::from_player(&player);
+        let stats_bytes =
+            crate::player::player_data_storage::encode_player_stats(&player.stats.lock());
         current_world.remove_player_for_world_change(&player);
 
         if let Err(e) = self
@@ -933,6 +954,24 @@ impl Server {
         {
             Self::cleanup_removed_domain_switch_player(&current_world, &player);
             return Err(format!("failed to save current domain data: {e}"));
+        }
+        match stats_bytes {
+            Ok(bytes) => {
+                if let Err(e) = self
+                    .player_data_storage
+                    .save_stats(&current_domain, player.gameprofile.id, bytes)
+                    .await
+                {
+                    log::error!(
+                        "Failed to save stats for {} during domain switch: {e}",
+                        player.gameprofile.name
+                    );
+                }
+            }
+            Err(e) => log::error!(
+                "Failed to encode stats for {} during domain switch: {e}",
+                player.gameprofile.name
+            ),
         }
 
         if player.connection.closed() {
@@ -962,6 +1001,25 @@ impl Server {
         }
 
         Self::apply_domain_player_state(&player, &target_state);
+
+        match self
+            .player_data_storage
+            .load_stats(&target_domain, player.gameprofile.id)
+            .await
+        {
+            Ok(loaded_stats) => {
+                let mut stats = player.stats.lock();
+                *stats = loaded_stats;
+                stats.mark_all_dirty();
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to load stats for {} in domain {target_domain}: {e}",
+                    player.gameprofile.name
+                );
+            }
+        }
+
         player.reset(target_state.world.clone(), ResetReason::WorldChange);
         Self::apply_domain_player_state(&player, &target_state);
         let pos = *player.position.lock();

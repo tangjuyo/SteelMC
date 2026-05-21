@@ -32,6 +32,18 @@ impl World {
         if let Err(e) = server.player_data_storage.save(&player).await {
             log::error!("Failed to save player data for {uuid}: {e}");
         }
+        let domain = self.domain().to_owned();
+        let stats_bytes =
+            crate::player::player_data_storage::encode_player_stats(&player.stats.lock());
+        match stats_bytes {
+            Ok(bytes) => {
+                if let Err(e) = server.player_data_storage.save_stats(&domain, uuid, bytes).await
+                {
+                    log::error!("Failed to save stats for {uuid}: {e}");
+                }
+            }
+            Err(e) => log::error!("Failed to encode stats for {uuid}: {e}"),
+        }
 
         // Unregister from entity cache
         let pos = player.position();

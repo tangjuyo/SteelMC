@@ -1,4 +1,5 @@
 mod c_add_entity;
+mod c_award_stats;
 mod c_animate;
 mod c_block_changed_ack;
 mod c_block_destruction;
@@ -88,6 +89,7 @@ mod s_use_item;
 mod s_use_item_on;
 
 pub use c_add_entity::{CAddEntity, write_lp_vec3};
+pub use c_award_stats::{CAwardStats, StatEntry};
 pub use c_animate::{AnimateAction, CAnimate};
 pub use c_block_changed_ack::CBlockChangedAck;
 pub use c_block_destruction::CBlockDestruction;

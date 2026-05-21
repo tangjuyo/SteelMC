@@ -23,11 +23,13 @@ pub mod player_data;
 pub mod player_data_storage;
 pub mod player_inventory;
 pub mod profile_key;
+pub mod stats;
 mod signature_cache;
 mod teleport_state;
 
 pub use abilities::Abilities;
 use chat_state::ChatState;
+pub use stats::PlayerStats;
 use entity_state::EntityState;
 use food_data::FoodData;
 use glam::DVec3;
@@ -276,6 +278,9 @@ pub struct Player {
     /// The Player's Experience
     pub experience: SyncMutex<Experience>,
 
+    /// Per-player statistics (blocks mined, items used, custom counters, etc.).
+    pub stats: SyncMutex<PlayerStats>,
+
     /// Monotonic counter bumped on world teleport/reset. The chunk sending tick
     /// snapshots this before encoding and compares after to detect stale batches.
     pub chunk_send_epoch: AtomicU32,
@@ -371,6 +376,7 @@ impl Player {
             domain_switching: AtomicBool::new(false),
             level_callback: SyncMutex::new(Arc::new(NullEntityCallback)),
             experience: SyncMutex::new(Experience::default()),
+            stats: SyncMutex::new(PlayerStats::new()),
             chunk_send_epoch: AtomicU32::new(0),
         }
     }
@@ -443,6 +449,7 @@ impl Player {
         }
 
         self.refresh_dirty_attributes();
+        self.stats.lock().flush_dirty(self);
 
         self.broadcast_inventory_changes();
         self.update_pose();
@@ -932,7 +939,7 @@ impl Player {
         match action {
             ClientCommandAction::PerformRespawn => self.respawn(),
             ClientCommandAction::RequestStats | ClientCommandAction::RequestGameRuleValues => {
-                // TODO: implement stats
+                self.stats.lock().mark_all_dirty();
             }
         }
     }
