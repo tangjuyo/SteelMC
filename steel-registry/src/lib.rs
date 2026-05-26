@@ -270,6 +270,11 @@ pub mod vanilla_timeline_tags;
 
 #[expect(warnings)]
 #[rustfmt::skip]
+#[path = "generated/vanilla_advancements.rs"]
+pub mod vanilla_advancements;
+
+#[expect(warnings)]
+#[rustfmt::skip]
 #[path = "generated/vanilla_recipes.rs"]
 pub mod vanilla_recipes;
 

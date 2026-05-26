@@ -23,11 +23,13 @@ pub mod player_data;
 pub mod player_data_storage;
 pub mod player_inventory;
 pub mod profile_key;
+pub mod advancements;
 pub mod stats;
 mod signature_cache;
 mod teleport_state;
 
 pub use abilities::Abilities;
+pub use advancements::PlayerAdvancements;
 use chat_state::ChatState;
 pub use stats::PlayerStats;
 use entity_state::EntityState;
@@ -87,7 +89,7 @@ use crate::entity::{
 use crate::inventory::SyncPlayerInv;
 use crate::player::experience::Experience;
 use crate::player::player_inventory::PlayerInventory;
-use crate::server::Server;
+use crate::server::{Server, trigger_registry::TriggerContext};
 use steel_registry::vanilla_damage_types;
 
 use steel_protocol::packets::{
@@ -280,6 +282,8 @@ pub struct Player {
 
     /// Per-player statistics (blocks mined, items used, custom counters, etc.).
     pub stats: SyncMutex<PlayerStats>,
+    /// Per-player advancement progress and visibility state.
+    pub advancements: SyncMutex<PlayerAdvancements>,
 
     /// Monotonic counter bumped on world teleport/reset. The chunk sending tick
     /// snapshots this before encoding and compares after to detect stale batches.
@@ -377,6 +381,7 @@ impl Player {
             level_callback: SyncMutex::new(Arc::new(NullEntityCallback)),
             experience: SyncMutex::new(Experience::default()),
             stats: SyncMutex::new(PlayerStats::new()),
+            advancements: SyncMutex::new(PlayerAdvancements::new()),
             chunk_send_epoch: AtomicU32::new(0),
         }
     }
@@ -428,8 +433,16 @@ impl Player {
 
             // TODO: Implement remaining player ticking logic here
             // - Managing game mode specific logic
-            // - Updating advancements
             // - Handling falling
+
+            {
+                let server = self.server();
+                self.advancements.lock().fire_trigger(
+                    &TriggerContext::Tick,
+                    &server.advancement_manager,
+                    &server.trigger_registry,
+                );
+            }
 
             // aiStep in vanilla
             if let Some(speed) = self
@@ -450,6 +463,12 @@ impl Player {
 
         self.refresh_dirty_attributes();
         self.stats.lock().flush_dirty(self);
+        {
+            let server = self.server();
+            self.advancements
+                .lock()
+                .flush_dirty(self, &server.advancement_manager);
+        }
 
         self.broadcast_inventory_changes();
         self.update_pose();

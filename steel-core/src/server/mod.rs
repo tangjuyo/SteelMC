@@ -1,4 +1,10 @@
 //! This module contains the `Server` struct, which is the main entry point for the server.
+/// Global advancement tree, built at startup from compiled-in datapack data.
+pub mod advancement_manager;
+/// Advancement trigger condition registry and game-state context types.
+pub mod trigger_registry;
+/// Predicate types used by trigger conditions.
+pub mod predicates;
 /// Tick-polled server jobs.
 pub mod jobs;
 /// The registry cache for the server.
@@ -22,6 +28,8 @@ use crate::player::player_data::PersistentPlayerData;
 use crate::player::player_data_storage::{GlobalPlayerData, PlayerDataStorage};
 use crate::player::{Player, ResetReason};
 use crate::portal::{TeleportTransition, WorldChangeRequest};
+use crate::server::advancement_manager::AdvancementManager;
+use crate::server::trigger_registry::TriggerRegistry;
 use crate::server::jobs::ServerJobQueue;
 use crate::server::registry_cache::RegistryCache;
 use crate::server::worlds::WorldMap;
@@ -147,6 +155,10 @@ pub struct Server {
     pub command_dispatcher: SyncRwLock<CommandDispatcher>,
     /// Jobs resumed from a known point in the server game tick.
     pub jobs: ServerJobQueue,
+    /// Global advancement tree, shared by all players.
+    pub advancement_manager: AdvancementManager,
+    /// Parsed trigger conditions for all vanilla advancement criteria.
+    pub trigger_registry: TriggerRegistry,
     /// Player data storage for saving/loading player state.
     pub player_data_storage: PlayerDataStorage,
     /// Queued world changes to process after the tick.
@@ -285,6 +297,8 @@ impl Server {
             tick_rate_manager: SyncRwLock::new(TickRateManager::new()),
             command_dispatcher: SyncRwLock::new(CommandDispatcher::new()),
             jobs: ServerJobQueue::new(),
+            advancement_manager: AdvancementManager::new(),
+            trigger_registry: TriggerRegistry::new(),
             player_data_storage,
             pending_world_changes: SyncMutex::new(vec![]),
             pending_domain_switches: SyncMutex::new(vec![]),
@@ -334,6 +348,12 @@ impl Server {
                     player.gameprofile.name
                 );
             }
+        }
+
+        {
+            let mut adv = player.advancements.lock();
+            adv.mark_all_roots_dirty(&self.advancement_manager);
+            adv.register_all_listeners(&self.advancement_manager, &self.trigger_registry);
         }
 
         self.send_login_packet(&player, &state.world);
@@ -1018,6 +1038,12 @@ impl Server {
                     player.gameprofile.name
                 );
             }
+        }
+
+        {
+            let mut adv = player.advancements.lock();
+            adv.mark_all_roots_dirty(&self.advancement_manager);
+            adv.register_all_listeners(&self.advancement_manager, &self.trigger_registry);
         }
 
         player.reset(target_state.world.clone(), ResetReason::WorldChange);

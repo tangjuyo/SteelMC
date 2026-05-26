@@ -1,6 +1,8 @@
 mod c_add_entity;
-mod c_award_stats;
 mod c_animate;
+mod c_award_stats;
+mod c_select_advancements_tab;
+mod c_update_advancements;
 mod c_block_changed_ack;
 mod c_block_destruction;
 mod c_block_entity_data;
@@ -58,6 +60,7 @@ mod c_ticking_step;
 mod c_update_attributes;
 mod chat_session_data;
 mod s_accept_teleportation;
+mod s_seen_advancements;
 mod s_change_difficulty;
 mod s_change_game_mode;
 mod s_chat;
@@ -89,8 +92,13 @@ mod s_use_item;
 mod s_use_item_on;
 
 pub use c_add_entity::{CAddEntity, write_lp_vec3};
-pub use c_award_stats::{CAwardStats, StatEntry};
 pub use c_animate::{AnimateAction, CAnimate};
+pub use c_award_stats::{CAwardStats, StatEntry};
+pub use c_select_advancements_tab::CSelectAdvancementsTab;
+pub use c_update_advancements::{
+    CUpdateAdvancements, NetworkAdvancementHolder, NetworkAdvancementProgress,
+    NetworkCriterionProgress, NetworkDisplayInfo,
+};
 pub use c_block_changed_ack::CBlockChangedAck;
 pub use c_block_destruction::CBlockDestruction;
 pub use c_block_entity_data::CBlockEntityData;
@@ -159,6 +167,7 @@ pub use c_update_attributes::{
 };
 pub use chat_session_data::ProtocolRemoteChatSessionData;
 pub use s_accept_teleportation::SAcceptTeleportation;
+pub use s_seen_advancements::{SSeenAdvancements, SeenAdvancementsAction};
 pub use s_change_difficulty::SChangeDifficulty;
 pub use s_change_game_mode::SChangeGameMode;
 pub use s_chat::SChat;

@@ -17,8 +17,8 @@ use steel_protocol::packets::game::{
     SCommandSuggestion, SContainerButtonClick, SContainerClick, SContainerClose,
     SContainerSlotStateChanged, SMovePlayerPos, SMovePlayerPosRot, SMovePlayerRot,
     SMovePlayerStatusOnly, SPickItemFromBlock, SPlayerAbilities, SPlayerAction, SPlayerCommand,
-    SPlayerInput, SPlayerLoad, SSetCarriedItem, SSetCreativeModeSlot, SSignUpdate, SSwing,
-    SUseItem, SUseItemOn,
+    SPlayerInput, SPlayerLoad, SSeenAdvancements, SSetCarriedItem, SSetCreativeModeSlot,
+    SSignUpdate, SSwing, SUseItem, SUseItemOn,
 };
 
 use steel_protocol::utils::{ConnectionProtocol, PacketError, RawPacket};
@@ -292,6 +292,19 @@ impl JavaConnection {
                 player.client_loaded.store(true, Ordering::Relaxed);
                 // Send initial inventory to client
                 player.send_inventory_to_remote();
+            }
+            play::S_SEEN_ADVANCEMENTS => {
+                let packet = SSeenAdvancements::read_packet(data)?;
+                let tab_id_str: Option<&'static str> = packet.tab_id.as_ref().and_then(|id| {
+                    server
+                        .advancement_manager
+                        .get(id.to_string().as_str())
+                        .map(|n| n.def.id)
+                });
+                player
+                    .advancements
+                    .lock()
+                    .set_selected_tab(tab_id_str, &player, &server.advancement_manager);
             }
             play::S_CHAT_COMMAND => {
                 server.command_dispatcher.read().handle_command(

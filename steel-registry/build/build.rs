@@ -1,5 +1,6 @@
 use std::{env, fs, path::Path, process::Command};
 
+mod advancements;
 mod attributes;
 mod banner_patterns;
 mod biome_tags;
@@ -110,6 +111,7 @@ const MENU_TYPES: &str = "menu_types";
 const TIMELINES: &str = "timelines";
 const TIMELINE_TAGS: &str = "timeline_tags";
 const ZOMBIE_NAUTILUS_VARIANTS: &str = "zombie_nautilus_variants";
+const ADVANCEMENTS: &str = "advancements";
 const RECIPES: &str = "recipes";
 const VANILLA_ENTITIES: &str = "entities";
 const ENTITY_DATA: &str = "entity_data";
@@ -184,6 +186,7 @@ pub fn main() {
         (timelines::build(), TIMELINES),
         (timeline_tags::build(), TIMELINE_TAGS),
         (zombie_nautilus_variants::build(), ZOMBIE_NAUTILUS_VARIANTS),
+        (advancements::build(), ADVANCEMENTS),
         (recipes::build(), RECIPES),
         (entities::build(), VANILLA_ENTITIES),
         (entity_data::build(), ENTITY_DATA),
