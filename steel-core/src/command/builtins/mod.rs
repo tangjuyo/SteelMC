@@ -16,6 +16,7 @@ mod invsee;
 mod kill;
 mod list;
 mod locate;
+mod notch;
 mod operator;
 mod perms;
 mod return_command;
@@ -76,6 +77,8 @@ pub(crate) fn create_registered_dispatcher(
     builder.register(kill::registration())?;
     builder.register(list::registration())?;
     builder.register(locate::registration())?;
+    builder.register(notch::apple_registration())?;
+    builder.register(notch::potion_registration())?;
     builder.register(operator::op_registration())?;
     builder.register(perms::registration())?;
     builder.register(return_command::registration())?;
@@ -151,6 +154,8 @@ mod tests {
                 "kill",
                 "list",
                 "locate",
+                "notchapple",
+                "notchpotion",
                 "op",
                 "perms",
                 "return",

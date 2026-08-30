@@ -131,6 +131,8 @@ pub mod vanilla_banner_patterns;
 #[path = "generated/vanilla_items.rs"]
 pub mod vanilla_items;
 
+pub mod steel_items;
+
 #[expect(warnings)]
 #[rustfmt::skip]
 #[path = "generated/vanilla_item_tags.rs"]

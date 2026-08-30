@@ -354,15 +354,20 @@ impl Default for ItemBehaviorRegistry {
 
 #[cfg(test)]
 mod tests {
-    use steel_registry::data_components::{Consumable, vanilla_components};
+    use steel_registry::data_components::{Consumable, PotionContents, vanilla_components};
     use steel_registry::item_stack::ItemStack;
     use steel_registry::stat::vanilla_stat_types;
-    use steel_registry::{init_vanilla_registry, vanilla_entities, vanilla_items};
+    use steel_registry::{
+        REGISTRY, RegistryExt as _, init_vanilla_registry, steel_items, vanilla_entities,
+        vanilla_items, vanilla_mob_effects,
+    };
     use steel_utils::types::InteractionHand;
     use steel_utils::{ChunkPos, Downcast as _, WorldAabb};
 
     use super::finish_consuming_stack;
     use crate::behavior::{ITEM_BEHAVIORS, InteractionResult, UseItemContext, init_behaviors};
+    use crate::entity::LivingEntity;
+    use crate::entity::apply_potion_contents;
     use crate::entity::entities::ItemEntity;
     use crate::inventory::container::Container as _;
     use crate::test_support::{TestPlayerBuilder, fresh_test_world, insert_ready_full_chunk};
@@ -524,5 +529,59 @@ mod tests {
                 .map(|(_, count)| count),
             Some(1)
         );
+    }
+
+    /// Eating the notch apple must grant every registered mob effect —
+    /// including immediately setting absorption hearts via the Absorption
+    /// effect's `on_effect_started` hook, not just leaving an inert entry.
+    #[test]
+    fn eating_notch_apple_grants_every_mob_effect() {
+        init_vanilla_registry();
+        init_behaviors();
+        let world = fresh_test_world("finish_consuming_notch_apple");
+        insert_ready_full_chunk(&world, ChunkPos::new(0, 0));
+        let player = TestPlayerBuilder::new(world.clone(), "Test", 1).build();
+        player.set_client_loaded(true);
+
+        let stack = steel_items::notch_apple_stack();
+        let _ = finish_consuming_stack(&stack, &world, player.as_ref());
+
+        assert_eq!(
+            player.active_mob_effects().len(),
+            REGISTRY.mob_effects.len()
+        );
+        assert!(player.get_absorption_amount() > 0.0);
+    }
+
+    /// Drinking the notch potion must grant only beneficial mob effects,
+    /// through the same `apply_potion_contents` path a real potion uses.
+    #[test]
+    fn drinking_notch_potion_grants_only_beneficial_mob_effects() {
+        init_vanilla_registry();
+        init_behaviors();
+        let world = fresh_test_world("apply_notch_potion");
+        insert_ready_full_chunk(&world, ChunkPos::new(0, 0));
+        let player = TestPlayerBuilder::new(world.clone(), "Test", 1).build();
+        player.set_client_loaded(true);
+
+        let contents = steel_items::notch_potion_stack()
+            .get_or_default(vanilla_components::POTION_CONTENTS, PotionContents::empty());
+        let beneficial_effect_count = contents.all_effects().len();
+        apply_potion_contents(&contents, &world, player.as_ref(), 1.0);
+
+        // Unlike the notch apple's `apply_effects` path, drinking routes
+        // instantaneous effects (Instant Health, Saturation — the only
+        // beneficial ones) through `apply_instantaneous` directly — they
+        // apply immediately and never become an active, ticking effect,
+        // matching vanilla `PotionContents.applyToLivingEntity`.
+        assert_eq!(
+            player.active_mob_effects().len(),
+            beneficial_effect_count - 2
+        );
+        assert!(
+            !player.has_mob_effect(vanilla_mob_effects::POISON),
+            "the potion must not carry harmful effects"
+        );
+        assert!(player.get_absorption_amount() > 0.0);
     }
 }
