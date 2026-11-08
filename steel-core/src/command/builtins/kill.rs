@@ -26,11 +26,7 @@ fn command() -> CommandNodeBuilder<CommandSource, SteelCommandRuntime> {
 }
 
 fn kill_self(context: &SteelCommandContext<CommandSource>) -> Result<i32, CommandSyntaxError> {
-    let Some(entity) = context.source().entity() else {
-        return Err(CommandSyntaxError::dynamic(TextComponent::from(
-            &translations::PERMISSIONS_REQUIRES_ENTITY,
-        )));
-    };
+    let entity = context.source().entity_or_error()?;
     kill_entities(context, slice::from_ref(entity))
 }
 

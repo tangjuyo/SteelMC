@@ -59,11 +59,7 @@ fn hand_swing(
 }
 
 fn swing_self(context: &SteelCommandContext<CommandSource>) -> Result<i32, CommandSyntaxError> {
-    let Some(entity) = context.source().entity() else {
-        return Err(CommandSyntaxError::dynamic(TextComponent::from(
-            &translations::PERMISSIONS_REQUIRES_ENTITY,
-        )));
-    };
+    let entity = context.source().entity_or_error()?;
     let (result, message) = swing_entities(
         slice::from_ref(entity),
         InteractionHand::MainHand,

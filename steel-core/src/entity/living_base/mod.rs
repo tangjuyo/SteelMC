@@ -64,6 +64,25 @@ pub struct MobEffectInstance {
 /// Active mob-effect state stored on a living entity.
 pub type ActiveMobEffect = MobEffectInstance;
 
+/// How [`LivingEntityBase::add_mob_effect`] changed the active effects.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MobEffectAddResult {
+    /// The effect was not active and has been inserted.
+    Added,
+    /// The active instance was replaced or extended.
+    Updated,
+    /// The active instance was kept as-is.
+    Unchanged,
+}
+
+impl MobEffectAddResult {
+    /// Returns whether the active effects changed.
+    #[must_use]
+    pub const fn changed(self) -> bool {
+        !matches!(self, Self::Unchanged)
+    }
+}
+
 impl MobEffectInstance {
     /// Creates infinite active mob-effect state for internal physics tests and hooks.
     #[must_use]
@@ -1081,7 +1100,7 @@ impl LivingEntityBase {
     }
 
     /// Adds or updates active vanilla mob-effect state.
-    pub fn add_mob_effect(&self, effect: MobEffectInstance) -> bool {
+    pub fn add_mob_effect(&self, effect: MobEffectInstance) -> MobEffectAddResult {
         let effect_key = effect.effect;
         let mut existing_effect = None;
         let mut changed_effect = None;
@@ -1104,7 +1123,7 @@ impl LivingEntityBase {
                 effect,
                 blend_for_self: true,
             });
-            return true;
+            return MobEffectAddResult::Added;
         }
 
         if let Some(effect) = changed_effect {
@@ -1114,10 +1133,10 @@ impl LivingEntityBase {
                 effect,
                 blend_for_self: false,
             });
-            return true;
+            return MobEffectAddResult::Updated;
         }
 
-        false
+        MobEffectAddResult::Unchanged
     }
 
     /// Sets active vanilla mob-effect state.
@@ -1144,6 +1163,21 @@ impl LivingEntityBase {
         self.remove_effect_attribute_modifiers(removed.effect);
         self.mark_effects_dirty();
         self.queue_mob_effect_sync(MobEffectSyncChange::Remove { effect });
+        true
+    }
+
+    /// Removes every active mob effect. Returns whether any effect was active.
+    pub fn remove_all_mob_effects(&self) -> bool {
+        let removed = mem::take(&mut *self.active_mob_effects.lock());
+        if removed.is_empty() {
+            return false;
+        }
+
+        self.mark_effects_dirty();
+        for effect in removed.into_keys() {
+            self.remove_effect_attribute_modifiers(effect);
+            self.queue_mob_effect_sync(MobEffectSyncChange::Remove { effect });
+        }
         true
     }
 

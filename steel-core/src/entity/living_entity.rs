@@ -1431,18 +1431,20 @@ pub trait LivingEntity: Entity {
             return false;
         }
         let (effect_key, amplifier) = (effect.effect(), effect.amplifier());
-        let changed = self.living_base().add_mob_effect(effect);
+        let result = self.living_base().add_mob_effect(effect);
         // TODO: Trigger CriteriaTriggers.EFFECTS_CHANGED with `source` when `changed`,
         // once the advancement-criteria foundation exists.
         let _ = source;
-        // Calls on_effect_started unconditionally, even when it didn't replace a stronger instance.
         let dyn_self = self
             .as_living_entity()
             .expect("Self implements LivingEntity");
-        MOB_EFFECT_BEHAVIORS
-            .get_behavior(effect_key)
-            .on_effect_started(dyn_self, amplifier);
-        changed
+        let behavior = MOB_EFFECT_BEHAVIORS.get_behavior(effect_key);
+        if result == MobEffectAddResult::Added {
+            behavior.on_effect_added(dyn_self, effect_key, amplifier);
+        }
+        // Calls on_effect_started unconditionally, even when it didn't replace a stronger instance.
+        behavior.on_effect_started(dyn_self, amplifier);
+        result.changed()
     }
 
     /// Sets the presence of a vanilla mob effect.
@@ -1457,6 +1459,11 @@ pub trait LivingEntity: Entity {
     /// Removes active vanilla mob-effect state.
     fn remove_mob_effect(&self, effect: MobEffectRef) -> bool {
         self.living_base().remove_mob_effect(effect)
+    }
+
+    /// Removes every active mob effect. Returns whether any effect was active.
+    fn remove_all_mob_effects(&self) -> bool {
+        self.living_base().remove_all_mob_effects()
     }
 
     /// Ticks vanilla server-side mob-effect behavior and durations.

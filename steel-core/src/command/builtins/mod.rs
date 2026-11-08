@@ -6,6 +6,7 @@ mod damage;
 mod defaultgamemode;
 mod difficulty;
 mod domain;
+mod effect;
 mod enchant;
 mod execute;
 mod experience;
@@ -22,6 +23,7 @@ mod operator;
 mod perms;
 mod playsound;
 mod position;
+mod response_tracker;
 mod return_command;
 mod seed;
 mod setblock;
@@ -79,6 +81,7 @@ pub(crate) fn create_registered_dispatcher(
     builder.register(defaultgamemode::registration())?;
     builder.register(difficulty::registration())?;
     builder.register(domain::registration())?;
+    builder.register(effect::registration())?;
     builder.register(enchant::registration())?;
     builder.register(execute::registration())?;
     builder.register(experience::registration())?;
@@ -164,6 +167,7 @@ mod tests {
                 "defaultgamemode",
                 "difficulty",
                 "domain",
+                "effect",
                 "enchant",
                 "execute",
                 "experience",

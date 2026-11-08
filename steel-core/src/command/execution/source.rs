@@ -331,6 +331,15 @@ impl CommandSource {
         self.entity.as_ref()
     }
 
+    /// Returns the executing entity, or the vanilla "requires an entity" error.
+    pub(crate) fn entity_or_error(&self) -> Result<&SharedEntity, CommandSyntaxError> {
+        self.entity.as_ref().ok_or_else(|| {
+            CommandSyntaxError::dynamic(TextComponent::from(
+                &translations::PERMISSIONS_REQUIRES_ENTITY,
+            ))
+        })
+    }
+
     pub(crate) const fn world(&self) -> &Arc<World> {
         &self.world
     }

@@ -38,10 +38,10 @@ use steel_protocol::packets::game::{
 use steel_registry::advancement::registry::AdvancementRef;
 use steel_registry::damage_type::DamageTypeRef;
 use steel_registry::{
-    DAMAGE_TYPE_REGISTRY, ENCHANTMENT_REGISTRY, ENTITY_TYPE_REGISTRY, REGISTRY, RegistryExt as _,
-    TIMELINE_REGISTRY, WORLD_CLOCK_REGISTRY, enchantment::EnchantmentRef,
-    entity_type::EntityTypeRef, item_stack::ItemStack, timeline::TimelineRef,
-    world_clock::WorldClockRef,
+    DAMAGE_TYPE_REGISTRY, ENCHANTMENT_REGISTRY, ENTITY_TYPE_REGISTRY, MOB_EFFECT_REGISTRY,
+    REGISTRY, RegistryExt as _, TIMELINE_REGISTRY, WORLD_CLOCK_REGISTRY,
+    enchantment::EnchantmentRef, entity_type::EntityTypeRef, item_stack::ItemStack,
+    mob_effect::MobEffectRef, timeline::TimelineRef, world_clock::WorldClockRef,
 };
 use steel_utils::translations::ADVANCEMENT_ADVANCEMENT_NOT_FOUND;
 use steel_utils::{
@@ -336,6 +336,10 @@ impl SteelArgumentType {
         Self::new(DamageTypeParser)
     }
 
+    pub(crate) fn mob_effect() -> Self {
+        Self::new(MobEffectParser)
+    }
+
     pub(crate) fn item_stack() -> Self {
         Self::new(ItemStackParser)
     }
@@ -540,6 +544,10 @@ argument_value_wrapper!(
 argument_value_wrapper!(
     EnchantmentValue(EnchantmentRef),
     "steel:command/value/enchantment"
+);
+argument_value_wrapper!(
+    MobEffectValue(MobEffectRef),
+    "steel:command/value/mob_effect"
 );
 argument_value_wrapper!(
     AdvancementValue(AdvancementRef),
@@ -1097,6 +1105,32 @@ unit_argument_parser!(
     protocol(
         ProtocolArgumentType::Resource {
             identifier: "minecraft:enchantment",
+        },
+        None,
+    )
+);
+unit_argument_parser!(
+    MobEffectParser,
+    "steel:command/parser/mob_effect",
+    MobEffectValue,
+    parse | reader,
+    _source | {
+        let key = parse_identifier(reader)?;
+        REGISTRY.mob_effects.by_key(&key).map_or_else(
+            || Err(unknown_resource(reader, &key, &MOB_EFFECT_REGISTRY)),
+            |effect| Ok(MobEffectValue(effect)),
+        )
+    },
+    suggest | _context,
+    builder | {
+        suggest_resources(
+            REGISTRY.mob_effects.iter().map(|(_, effect)| &effect.key),
+            builder,
+        );
+    },
+    protocol(
+        ProtocolArgumentType::Resource {
+            identifier: "minecraft:mob_effect",
         },
         None,
     )

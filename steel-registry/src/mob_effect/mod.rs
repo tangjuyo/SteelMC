@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
 
 pub mod instance;
@@ -5,8 +6,10 @@ pub mod instance;
 use crate::RegistryTags;
 use crate::attribute::{AttributeModifierOperation, AttributeRef};
 use crate::particle_type::{ColorParticleOption, ParticleData, ParticleTypeRef};
+use crate::sound_event::SoundEventRef;
 use rustc_hash::FxHashMap;
 use steel_utils::{ArgbColor, Identifier, RgbColor};
+use text_components::{TextComponent, translation::TranslatedMessage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MobEffectCategory {
@@ -76,6 +79,8 @@ pub struct MobEffect {
     pub color: RgbColor,
     pub particle: MobEffectParticle,
     pub attribute_modifiers: &'static [MobEffectAttributeModifier],
+    /// Sound played at the entity when the effect is newly added.
+    pub sound_on_added: Option<SoundEventRef>,
 }
 
 impl MobEffect {
@@ -83,6 +88,26 @@ impl MobEffect {
     #[must_use]
     pub fn create_particle_options(&self, ambient: bool) -> ParticleData {
         self.particle.create(self.color, ambient)
+    }
+
+    /// Returns the translation key built by vanilla `Util.makeDescriptionId("effect", key)`.
+    #[must_use]
+    pub fn description_id(&self) -> String {
+        format!(
+            "effect.{}.{}",
+            self.key.namespace,
+            self.key.path.replace('/', ".")
+        )
+    }
+
+    /// Returns the translatable name used in chat feedback.
+    #[must_use]
+    pub fn display_name(&self) -> TextComponent {
+        TextComponent::translated(TranslatedMessage {
+            key: Cow::Owned(self.description_id()),
+            fallback: None,
+            args: None,
+        })
     }
 
     /// Returns the `VarInt` payload used by vanilla mob-effect holder-registry packets.

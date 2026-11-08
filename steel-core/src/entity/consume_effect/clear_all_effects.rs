@@ -14,8 +14,6 @@ pub struct ClearAllEffectsBehavior;
 
 impl ConsumeEffectBehavior for ClearAllEffectsBehavior {
     fn apply(&self, _effect: &ConsumeEffectData, _world: &Arc<World>, user: &dyn LivingEntity) {
-        for active in user.active_mob_effects() {
-            user.remove_mob_effect(active.effect());
-        }
+        user.remove_all_mob_effects();
     }
 }

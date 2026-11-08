@@ -75,7 +75,7 @@ fn target_position_branch() -> CommandNodeBuilder<CommandSource, SteelCommandRun
 fn teleport_source_to_position(
     context: &SteelCommandContext<CommandSource>,
 ) -> Result<i32, CommandSyntaxError> {
-    let target = source_entity(context)?;
+    let target = context.source().entity_or_error()?;
     let destination = required_coordinates(context, "location")?;
     teleport_to_position(context, slice::from_ref(target), destination, None, None)
 }
@@ -83,7 +83,7 @@ fn teleport_source_to_position(
 fn teleport_source_to_entity(
     context: &SteelCommandContext<CommandSource>,
 ) -> Result<i32, CommandSyntaxError> {
-    let target = source_entity(context)?;
+    let target = context.source().entity_or_error()?;
     let destination = context.entity("destination")?;
     teleport_to_entity(context, slice::from_ref(target), &destination)
 }
@@ -158,16 +158,6 @@ fn teleport_targets_to_entity(
     let targets = context.entities("targets")?;
     let destination = context.entity("destination")?;
     teleport_to_entity(context, &targets, &destination)
-}
-
-fn source_entity(
-    context: &SteelCommandContext<CommandSource>,
-) -> Result<&SharedEntity, CommandSyntaxError> {
-    context.source().entity().ok_or_else(|| {
-        CommandSyntaxError::dynamic(TextComponent::from(
-            &translations::PERMISSIONS_REQUIRES_ENTITY,
-        ))
-    })
 }
 
 fn required_coordinates(

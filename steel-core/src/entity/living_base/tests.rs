@@ -13,8 +13,8 @@ use crate::behavior::init_behaviors;
 use crate::inventory::equipment::EquipmentSlot;
 
 use super::{
-    ActiveMobEffect, LivingEntityBase, LivingTravelInput, MobEffectInstance, MobEffectSyncChange,
-    POST_IMPULSE_GRACE_TICKS,
+    ActiveMobEffect, LivingEntityBase, LivingTravelInput, MobEffectAddResult, MobEffectInstance,
+    MobEffectSyncChange, POST_IMPULSE_GRACE_TICKS,
 };
 
 /// An infinite-duration effect never "ends within" anything, and the bound is inclusive.
@@ -447,11 +447,14 @@ fn mob_effect_attribute_modifiers_use_extracted_vanilla_data() {
     let speed_modifier = &vanilla_mob_effects::SPEED.attribute_modifiers[0];
 
     assert_eq!(speed_modifier.attribute.key, movement_speed.key);
-    assert!(base.add_mob_effect(MobEffectInstance::with_duration(
-        vanilla_mob_effects::SPEED,
-        200,
-        1
-    )));
+    assert_eq!(
+        base.add_mob_effect(MobEffectInstance::with_duration(
+            vanilla_mob_effects::SPEED,
+            200,
+            1
+        )),
+        MobEffectAddResult::Added
+    );
 
     let boosted_speed = base
         .attributes()
@@ -500,16 +503,24 @@ fn stronger_shorter_effect_downgrades_to_hidden_effect() {
     init_vanilla_registry();
     let base = LivingEntityBase::new(&vanilla_entities::PLAYER);
 
-    base.add_mob_effect(MobEffectInstance::with_duration(
-        vanilla_mob_effects::SPEED,
-        10,
-        0,
-    ));
-    base.add_mob_effect(MobEffectInstance::with_duration(
-        vanilla_mob_effects::SPEED,
-        2,
-        1,
-    ));
+    assert_eq!(
+        base.add_mob_effect(MobEffectInstance::with_duration(
+            vanilla_mob_effects::SPEED,
+            10,
+            0,
+        )),
+        MobEffectAddResult::Added
+    );
+    // A stronger instance updates the active one instead of being re-added,
+    // so `MobEffect.onEffectAdded` (e.g. the bad omen sound) does not run again.
+    assert_eq!(
+        base.add_mob_effect(MobEffectInstance::with_duration(
+            vanilla_mob_effects::SPEED,
+            2,
+            1,
+        )),
+        MobEffectAddResult::Updated
+    );
     base.drain_dirty_mob_effects();
 
     base.tick_mob_effect_duration(vanilla_mob_effects::SPEED);

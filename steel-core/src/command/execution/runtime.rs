@@ -24,7 +24,7 @@ use crate::command::brigadier::{
     ArgumentSuggestionContext, CommandContext, CommandNodeBuilder, CommandRedirectTarget,
     CommandRuntime, CommandSyntaxError, ContextChain,
 };
-use crate::command::execution::argument::{AdvancementValue, DamageTypeValue};
+use crate::command::execution::argument::{AdvancementValue, DamageTypeValue, MobEffectValue};
 use crate::command::incorrectly_typed_argument;
 use crate::{
     chunk::heightmap::HeightmapType,
@@ -36,6 +36,7 @@ use crate::{
 use steel_registry::advancement::registry::AdvancementRef;
 use steel_registry::damage_type::DamageTypeRef;
 use steel_registry::data_components::vanilla_components::SwingAnimationType;
+use steel_registry::mob_effect::MobEffectRef;
 use steel_registry::{
     enchantment::EnchantmentRef, entity_type::EntityTypeRef, item_stack::ItemStack,
     timeline::TimelineRef, world_clock::WorldClockRef,
@@ -333,6 +334,11 @@ where
 
     pub(crate) fn damage_type(&self, name: &str) -> Result<DamageTypeRef, CommandSyntaxError> {
         self.typed_argument::<DamageTypeValue>(name)
+            .map(|value| value.0)
+    }
+
+    pub(crate) fn mob_effect(&self, name: &str) -> Result<MobEffectRef, CommandSyntaxError> {
+        self.typed_argument::<MobEffectValue>(name)
             .map(|value| value.0)
     }
 
