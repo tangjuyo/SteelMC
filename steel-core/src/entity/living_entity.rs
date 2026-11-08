@@ -1779,7 +1779,13 @@ pub trait LivingEntity: Entity {
             .flatten()
     }
 
-    /// Applies the sound portion of vanilla's equipment-change hook.
+    /// Vanilla `LivingEntity.doesEmitEquipEvent`: whether equipping `slot` emits a game event.
+    fn does_emit_equip_event(&self, _slot: EquipmentSlot) -> bool {
+        true
+    }
+
+    /// Vanilla `LivingEntity.onEquipItem`: plays the equip sound and emits the
+    /// `EQUIP`/`UNEQUIP` game event.
     fn on_equip_item(&self, slot: EquipmentSlot, previous: &ItemStack, stack: &ItemStack) {
         if self.is_spectator()
             || self.is_first_tick()
@@ -1788,14 +1794,18 @@ pub trait LivingEntity: Entity {
             return;
         }
 
-        let Some(sound) = self.equip_sound(slot, stack) else {
-            return;
-        };
-        if self.is_silent() {
-            return;
-        }
-        if let Some(world) = self.level() {
+        if let Some(sound) = self.equip_sound(slot, stack)
+            && !self.is_silent()
+            && let Some(world) = self.level()
+        {
             world.play_sound_at(sound, self.sound_source(), self.position(), 1.0, 1.0, None);
+        }
+        if self.does_emit_equip_event(slot) {
+            self.game_event(if stack.get_equippable().is_some() {
+                &vanilla_game_events::EQUIP
+            } else {
+                &vanilla_game_events::UNEQUIP
+            });
         }
     }
 
@@ -1846,7 +1856,6 @@ pub trait LivingEntity: Entity {
         if let Some(mob) = self.as_mob() {
             mob.set_guaranteed_drop(slot);
         }
-        // TODO: Emit EQUIP game event once game-event dispatch is implemented.
         InteractionResult::Success
     }
 

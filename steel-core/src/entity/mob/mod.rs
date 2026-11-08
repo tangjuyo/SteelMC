@@ -2,6 +2,7 @@
 
 mod pathfinder;
 
+use crate::behavior::apply_use_remainder;
 use crate::entity::leash::{LeashData, Leashable};
 pub use pathfinder::PathfinderMob;
 use pathfinder::tick_path_navigation_target;
@@ -692,8 +693,17 @@ pub trait Mob: LivingEntity + Leashable {
 
     /// Consumes one of the player's held item after this mob uses it in an interaction.
     fn use_player_item(&self, player: &Player, hand: InteractionHand) {
-        player.inventory.lock().shrink_item_in_hand(hand, 1);
-        // TODO: Apply USE_REMAINDER components once item use-remainder support exists.
+        let (original, used) = {
+            let mut inventory = player.inventory.lock();
+            let original = inventory.get_item_in_hand(hand).clone();
+            inventory.shrink_item_in_hand(hand, 1);
+            (original, inventory.get_item_in_hand(hand).clone())
+        };
+        let new_hand_stack = apply_use_remainder(&original, used, player);
+        player
+            .inventory
+            .lock()
+            .set_item_in_hand(hand, new_hand_stack);
     }
 
     fn remove_when_far_away(&self, dist_sqr: f64) -> bool {

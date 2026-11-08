@@ -113,7 +113,7 @@ use crate::entity::{
     apply_entity_look_at, get_kill_credit, start_riding_entities,
 };
 use crate::fluid::get_fluid_state;
-use crate::inventory::equipment::{EntityEquipment, EquipmentSlot};
+use crate::inventory::equipment::{EntityEquipment, EquipmentSlot, EquipmentSlotType};
 use crate::inventory::lock::{ContainerLockGuard, ContainerRef};
 use crate::inventory::menu::Menu;
 use crate::inventory::menu::kinds::inventory_menu;
@@ -817,7 +817,8 @@ impl Player {
             }
         }
 
-        // TODO: reset player noActionTime and remove shoulder entities.
+        self.set_no_action_time(0);
+        // TODO: Remove shoulder entities once player shoulder storage is implemented.
         if self.get_health() <= 0.0 {
             return false;
         }
@@ -1779,6 +1780,10 @@ const fn protocol_look_at_anchor(anchor: EntityAnchor) -> LookAtAnchor {
 }
 
 impl LivingEntity for Player {
+    fn does_emit_equip_event(&self, slot: EquipmentSlot) -> bool {
+        slot.slot_type() == EquipmentSlotType::HumanoidArmor
+    }
+
     fn living_synced_data(&self) -> Option<&dyn LivingEntitySyncedData> {
         Some(&self.entity_data)
     }
@@ -2083,7 +2088,6 @@ impl LivingEntity for Player {
         }
 
         self.on_equip_item(slot, &ItemStack::empty(), &equipped);
-        // TODO: Emit EQUIP game event once game-event dispatch is implemented.
         InteractionResult::Success
     }
 

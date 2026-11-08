@@ -66,6 +66,15 @@ impl PotionContents {
         Self::new(Some(RegistryReference::new(potion)), None, Vec::new(), None)
     }
 
+    /// Vanilla `PotionContents.withPotion`: replaces the base potion, keeping custom data.
+    #[must_use]
+    pub fn with_potion(self, potion: PotionRef) -> Self {
+        Self {
+            potion: Some(RegistryReference::new(potion)),
+            ..self
+        }
+    }
+
     #[must_use]
     pub fn create_item_stack(item: ItemRef, potion: PotionRef) -> ItemStack {
         let mut stack = ItemStack::new(item);

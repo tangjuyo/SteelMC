@@ -1556,6 +1556,11 @@ impl LivingEntityBase {
         self.state.lock().hurt_time
     }
 
+    /// Sets the current hurt time, mirroring a direct vanilla `hurtTime` write.
+    pub fn set_hurt_time(&self, hurt_time: i32) {
+        self.state.lock().hurt_time = hurt_time;
+    }
+
     /// Returns the current hurt duration
     #[must_use]
     pub fn hurt_duration(&self) -> i32 {

@@ -22,14 +22,15 @@ use crate::{
     data_components::{
         Component, ComponentData, ComponentPatchEntry, CustomData, DataComponentMap,
         DataComponentPatch, DataComponentType,
+        components::{Filterable, SeededContainerLoot, WrittenBookContent},
         vanilla_components::{
             ATTACK_RANGE, ATTRIBUTE_MODIFIERS, AttackRange, BUNDLE_CONTENTS, CHARGED_PROJECTILES,
-            CONTAINER, CUSTOM_DATA, CUSTOM_NAME, DAMAGE, DAMAGE_RESISTANT, DAMAGE_TYPE,
-            ENCHANTABLE, ENCHANTMENTS, EQUIPPABLE, Equippable, ITEM_NAME, ItemAttributeModifiers,
-            ItemEnchantments, MAX_DAMAGE, MAX_STACK_SIZE, MINIMUM_ATTACK_CHARGE,
-            OMINOUS_BOTTLE_AMPLIFIER, OminousBottleAmplifier, PIERCING_WEAPON, PiercingWeapon,
-            REPAIRABLE, STORED_ENCHANTMENTS, TOOL, Tool, UNBREAKABLE, WEAPON, WRITTEN_BOOK_CONTENT,
-            Weapon,
+            CONTAINER, CONTAINER_LOOT, CUSTOM_DATA, CUSTOM_NAME, DAMAGE, DAMAGE_RESISTANT,
+            DAMAGE_TYPE, ENCHANTABLE, ENCHANTMENTS, EQUIPPABLE, Equippable, ITEM_NAME,
+            ItemAttributeModifiers, ItemEnchantments, MAX_DAMAGE, MAX_STACK_SIZE,
+            MINIMUM_ATTACK_CHARGE, OMINOUS_BOTTLE_AMPLIFIER, OminousBottleAmplifier,
+            PIERCING_WEAPON, POTION_CONTENTS, PiercingWeapon, REPAIRABLE, STORED_ENCHANTMENTS,
+            TOOL, Tool, UNBREAKABLE, WEAPON, WRITTEN_BOOK_CONTENT, Weapon,
         },
     },
     enchantment_effect::EnchantmentEffectComponent,
@@ -696,11 +697,19 @@ impl ItemStack {
 
     /// Sets the damage/durability as a fraction (0.0 = broken, 1.0 = full).
     /// If `add` is true, adds to current damage instead of setting.
-    pub const fn set_damage_fraction(&mut self, _fraction: f32, _add: bool) {
-        // TODO: Implement when damage component system is ready
-        // let max_damage = self.get_max_damage();
-        // let damage_value = ((1.0 - fraction) * max_damage as f32) as i32;
-        // self.set_component(DAMAGE, damage_value);
+    pub fn set_damage_fraction(&mut self, fraction: f32, add: bool) {
+        if !self.is_damageable_item() {
+            log::warn!("Couldn't set damage of loot item {self:?}");
+            return;
+        }
+        let max_damage = self.get_max_damage() as f32;
+        let base = if add {
+            1.0 - self.get_damage_value() as f32 / max_damage
+        } else {
+            0.0
+        };
+        let pct = 1.0 - (fraction + base).clamp(0.0, 1.0);
+        self.set_damage_value((pct * max_damage).floor() as i32);
     }
 
     /// Enchants this item randomly with enchantments from the given options.
@@ -825,9 +834,12 @@ impl ItemStack {
     }
 
     /// Sets the potion type for this item.
-    pub const fn set_potion(&mut self, _id: &Identifier) {
-        // TODO: Implement potion type setting
-        // Set the POTION_CONTENTS component with the potion ID
+    pub fn set_potion(&mut self, id: &Identifier) {
+        let Some(potion) = REGISTRY.potions.by_key(id) else {
+            return;
+        };
+        let contents = self.get(POTION_CONTENTS).cloned().unwrap_or_default();
+        self.set(POTION_CONTENTS, contents.with_potion(potion));
     }
 
     /// Sets the suspicious stew effects for this item.
@@ -918,9 +930,12 @@ impl ItemStack {
     }
 
     /// Sets the container's loot table reference.
-    pub const fn set_loot_table(&mut self, _loot_table: &Identifier, _seed: Option<i64>) {
-        // TODO: Implement loot table reference setting
-        // Set CONTAINER_LOOT component with table reference and seed
+    pub fn set_loot_table(&mut self, loot_table: &Identifier, seed: Option<i64>) {
+        if self.is_empty() {
+            return;
+        }
+        let loot = SeededContainerLoot::new(loot_table.clone(), seed.unwrap_or(0));
+        self.set(CONTAINER_LOOT, loot);
     }
 
     /// Sets attribute modifiers on this item.
@@ -985,14 +1000,30 @@ impl ItemStack {
     }
 
     /// Sets book cover (title/author for written books).
-    pub const fn set_book_cover(
+    pub fn set_book_cover(
         &mut self,
-        _title: Option<&str>,
-        _author: Option<&str>,
-        _generation: Option<i32>,
+        title: Option<&str>,
+        author: Option<&str>,
+        generation: Option<i32>,
     ) {
-        // TODO: Implement book cover setting
-        // Set WRITTEN_BOOK_CONTENT component fields
+        let original = self
+            .get(WRITTEN_BOOK_CONTENT)
+            .cloned()
+            .unwrap_or_else(WrittenBookContent::empty);
+        let Ok(content) = WrittenBookContent::new(
+            title.map_or_else(
+                || original.title().clone(),
+                |title| Filterable::pass_through(title.to_owned()),
+            ),
+            author.map_or_else(|| original.author().to_owned(), str::to_owned),
+            generation.unwrap_or_else(|| original.generation()),
+            original.pages().to_vec(),
+            original.resolved(),
+        ) else {
+            log::warn!("Couldn't set invalid book cover on loot item {self:?}");
+            return;
+        };
+        self.set(WRITTEN_BOOK_CONTENT, content);
     }
 
     /// Sets written book page contents.
